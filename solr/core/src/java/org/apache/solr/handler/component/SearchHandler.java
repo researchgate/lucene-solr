@@ -66,9 +66,9 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
   static final String INIT_LAST_COMPONENTS = "last-components";
 
 
-  
 
-  
+
+
   protected static Logger log = LoggerFactory.getLogger(SearchHandler.class);
 
   protected volatile List<SearchComponent> components;
@@ -214,7 +214,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
       final String shards = req.getParams().get(ShardParams.SHARDS);
       rb.isDistrib = ((shards != null) && (shards.indexOf('/') > 0));
     }
-    
+
     if (rb.isDistrib) {
       shardHandler = shardHandlerFactory.getShardHandler();
       shardHandler.prepDistributed(rb);
@@ -225,7 +225,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
 
     return shardHandler;
   }
-  
+
   @Override
   public void handleRequestBody(SolrQueryRequest req, SolrQueryResponse rsp) throws Exception
   {
@@ -244,7 +244,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
     final RTimer timer = rb.isDebug() ? req.getRequestTimer() : null;
 
     final ShardHandler shardHandler1 = getAndPrepShardHandler(req, rb); // creates a ShardHandler object only if it's needed
-    
+
     if (timer == null) {
       // non-debugging prepare phase
       for( SearchComponent c : components ) {
@@ -294,11 +294,12 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
         }
       } catch (ExitableDirectoryReader.ExitingReaderException ex) {
         log.warn( "Query: " + req.getParamString() + "; " + ex.getMessage());
-        SolrDocumentList r = (SolrDocumentList) rb.rsp.getValues().get("response");
-        if(r == null)
-          r = new SolrDocumentList();
-        r.setNumFound(0);
-        rb.rsp.add("response", r);
+        Object r = rb.rsp.getValues().get("response");
+        if(r == null) {
+          SolrDocumentList docList = new SolrDocumentList();
+          docList.setNumFound(0);
+          rb.rsp.add("response", docList);
+        }
         if(rb.isDebug()) {
           NamedList debug = new NamedList();
           debug.add("explain", new NamedList());
@@ -381,7 +382,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
           // this loop)
           boolean tolerant = rb.req.getParams().getBool(ShardParams.SHARDS_TOLERANT, false);
           while (rb.outgoing.size() == 0) {
-            ShardResponse srsp = tolerant ? 
+            ShardResponse srsp = tolerant ?
                 shardHandler1.takeCompletedIncludingErrors():
                 shardHandler1.takeCompletedOrError();
             if (srsp == null) break;  // no more requests to wait for
@@ -419,11 +420,11 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
         // we are done when the next stage is MAX_VALUE
       } while (nextStage != Integer.MAX_VALUE);
     }
-    
+
     // SOLR-5550: still provide shards.info if requested even for a short circuited distrib request
-    if(!rb.isDistrib && req.getParams().getBool(ShardParams.SHARDS_INFO, false) && rb.shortCircuitedURL != null) {  
+    if(!rb.isDistrib && req.getParams().getBool(ShardParams.SHARDS_INFO, false) && rb.shortCircuitedURL != null) {
       NamedList<Object> shardInfo = new SimpleOrderedMap<Object>();
-      SimpleOrderedMap<Object> nl = new SimpleOrderedMap<Object>();        
+      SimpleOrderedMap<Object> nl = new SimpleOrderedMap<Object>();
       if (rsp.getException() != null) {
         Throwable cause = rsp.getException();
         if (cause instanceof SolrServerException) {
@@ -431,7 +432,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
         } else {
           if (cause.getCause() != null) {
             cause = cause.getCause();
-          }          
+          }
         }
         nl.add("error", cause.toString() );
         StringWriter trace = new StringWriter();
@@ -444,11 +445,11 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
       }
       nl.add("shardAddress", rb.shortCircuitedURL);
       nl.add("time", req.getRequestTimer().getTime()); // elapsed time of this request so far
-      
-      int pos = rb.shortCircuitedURL.indexOf("://");        
+
+      int pos = rb.shortCircuitedURL.indexOf("://");
       String shardInfoName = pos != -1 ? rb.shortCircuitedURL.substring(pos+3) : rb.shortCircuitedURL;
-      shardInfo.add(shardInfoName, nl);   
-      rsp.getValues().add(ShardParams.SHARDS_INFO,shardInfo);            
+      shardInfo.add(shardInfoName, nl);
+      rsp.getValues().add(ShardParams.SHARDS_INFO,shardInfo);
     }
   }
 
